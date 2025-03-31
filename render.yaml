@@ -8,9 +8,9 @@ services:
     startCommand: streamlit run src/main.py
     envVars:
       - key: OPENAI_API_KEY
-        value: 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
+        sync: false
       - key: TELEGRAM_BOT_TOKEN
-        value: 7490395034:AAFNO1n6QzhVfUQWiE8a72MGx5Mr1RUWBHQ
+        sync: false
     autoDeploy: true
     numInstances: 1
     healthCheckPath: /
