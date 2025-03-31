@@ -14,12 +14,12 @@ import requests
 import time
 from datetime import datetime
 
-# GitHub credentials
-GITHUB_USERNAME = "dantiezsaunderson"
-GITHUB_TOKEN = "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"
+# GitHub credentials from environment variables or user input
+GITHUB_USERNAME = os.environ.get("GITHUB_USERNAME", "dantiezsaunderson")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
-# Render deploy hook
-RENDER_DEPLOY_HOOK = "https://api.render.com/deploy/srv-cvl1m2a4d50c73e0pkdg?key=SjaQiBUV2cM"
+# Render deploy hook from environment variable
+RENDER_DEPLOY_HOOK = os.environ.get("RENDER_DEPLOY_HOOK", "https://api.render.com/deploy/srv-cvl1m2a4d50c73e0pkdg?key=SjaQiBUV2cM")
 
 # GitHub repository
 GITHUB_REPO = "Open_Manus_AI"
@@ -36,6 +36,8 @@ def setup_argparse():
     parser.add_argument("--message", "-m", type=str, default=f"Update {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
                         help="Commit message for GitHub")
     parser.add_argument("--branch", type=str, default="main", help="Branch to push to")
+    parser.add_argument("--github-username", type=str, help="GitHub username (overrides environment variable)")
+    parser.add_argument("--github-token", type=str, help="GitHub personal access token (overrides environment variable)")
     return parser.parse_args()
 
 def run_command(command, cwd=None):
@@ -56,7 +58,7 @@ def run_command(command, cwd=None):
         print(f"Error message: {e.stderr}")
         sys.exit(1)
 
-def push_to_github(commit_message, branch):
+def push_to_github(commit_message, branch, github_username, github_token):
     """Push changes to GitHub repository."""
     print("\n=== Pushing to GitHub ===")
     
@@ -67,36 +69,59 @@ def push_to_github(commit_message, branch):
         print(f"Current directory: {current_dir}")
         sys.exit(1)
     
-    # Configure Git credentials
+    # Check if GitHub credentials are provided
+    if not github_username or not github_token:
+        print("Error: GitHub username and token are required.")
+        print("Please provide them as environment variables or command line arguments.")
+        sys.exit(1)
+    
+    # Configure Git credentials securely
     print("Configuring Git credentials...")
+    # Use git credential store temporarily
     run_command(f'git config --local credential.helper "store --file=.git/credentials"')
     with open(".git/credentials", "w") as f:
-        f.write(f"https://{GITHUB_USERNAME}:{GITHUB_TOKEN}@github.com\n")
+        f.write(f"https://{github_username}:{github_token}@github.com\n")
     
     # Check if the repository is already initialized
     if not os.path.exists(".git"):
         print("Initializing Git repository...")
         run_command("git init")
-        run_command(f'git remote add origin https://{GITHUB_USERNAME}:{GITHUB_TOKEN}@github.com/{GITHUB_USERNAME}/{GITHUB_REPO}.git')
+        run_command(f'git remote add origin https://github.com/{github_username}/{GITHUB_REPO}.git')
     
     # Check if the remote exists
     remotes = run_command("git remote -v")
     if "origin" not in remotes:
         print("Adding remote origin...")
-        run_command(f'git remote add origin https://{GITHUB_USERNAME}:{GITHUB_TOKEN}@github.com/{GITHUB_USERNAME}/{GITHUB_REPO}.git')
+        run_command(f'git remote add origin https://github.com/{github_username}/{GITHUB_REPO}.git')
+    else:
+        # Update remote URL if it exists but might have changed
+        run_command(f'git remote set-url origin https://github.com/{github_username}/{GITHUB_REPO}.git')
     
     # Add all files
     print("Adding files to Git...")
     run_command("git add .")
     
-    # Commit changes
-    print(f"Committing changes with message: {commit_message}")
-    run_command(f'git commit -m "{commit_message}"')
-    
-    # Push to GitHub
-    print(f"Pushing to branch: {branch}")
-    push_result = run_command(f"git push -u origin {branch}")
-    print(push_result)
+    # Check if there are changes to commit
+    status = run_command("git status --porcelain")
+    if not status:
+        print("No changes to commit.")
+        # Try to push existing commits
+        print(f"Pushing existing commits to branch: {branch}")
+        try:
+            push_result = run_command(f"git push -u origin {branch}")
+            print(push_result)
+        except Exception as e:
+            print(f"Warning: Could not push existing commits: {str(e)}")
+            # Continue with deployment even if push fails
+    else:
+        # Commit changes
+        print(f"Committing changes with message: {commit_message}")
+        run_command(f'git commit -m "{commit_message}"')
+        
+        # Push to GitHub
+        print(f"Pushing to branch: {branch}")
+        push_result = run_command(f"git push -u origin {branch}")
+        print(push_result)
     
     # Clean up credentials
     if os.path.exists(".git/credentials"):
@@ -105,13 +130,19 @@ def push_to_github(commit_message, branch):
     print("Successfully pushed to GitHub!")
     return True
 
-def deploy_to_render():
+def deploy_to_render(render_hook_url):
     """Deploy the application to Render."""
     print("\n=== Deploying to Render ===")
     
+    # Check if Render deploy hook is provided
+    if not render_hook_url:
+        print("Error: Render deploy hook URL is required.")
+        print("Please provide it as an environment variable or command line argument.")
+        sys.exit(1)
+    
     # Trigger Render deployment
-    print(f"Triggering deployment via webhook: {RENDER_DEPLOY_HOOK}")
-    response = requests.post(RENDER_DEPLOY_HOOK)
+    print(f"Triggering deployment via webhook...")
+    response = requests.post(render_hook_url)
     
     if response.status_code == 200:
         print("Deployment triggered successfully!")
@@ -145,19 +176,27 @@ def main():
     print("=== Open Manus AI Deployment ===")
     print(f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
+    # Get GitHub credentials from args or environment variables
+    github_username = args.github_username or GITHUB_USERNAME
+    github_token = args.github_token or GITHUB_TOKEN
+    
+    # If token is still missing, prompt for it
+    if not github_token:
+        github_token = input("Please enter your GitHub personal access token: ")
+    
     success = True
     
     # Push to GitHub if not deploy-only
     if not args.deploy_only:
-        success = push_to_github(args.message, args.branch)
+        success = push_to_github(args.message, args.branch, github_username, github_token)
     
     # Deploy to Render if not push-only and GitHub push was successful
     if not args.push_only and success:
-        success = deploy_to_render()
+        success = deploy_to_render(RENDER_DEPLOY_HOOK)
     
     if success:
         print("\n=== Deployment Process Complete ===")
-        print(f"GitHub Repository: https://github.com/{GITHUB_USERNAME}/{GITHUB_REPO}")
+        print(f"GitHub Repository: https://github.com/{github_username}/{GITHUB_REPO}")
         print(f"Deployed Application: {RENDER_APP_URL}")
     else:
         print("\n=== Deployment Process Failed ===")
