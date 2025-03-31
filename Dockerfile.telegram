@@ -26,8 +26,8 @@ RUN mkdir -p data logs
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-# Expose port for Streamlit
-EXPOSE 8501
+# Expose port for Telegram bot
+EXPOSE 8000
 
-# Command to run the application
-CMD ["streamlit", "run", "src/main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Command to run the Telegram bot
+CMD ["python", "src/telegram_bot.py"]

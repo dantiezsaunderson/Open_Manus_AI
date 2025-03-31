@@ -60,3 +60,6 @@ instance/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Local Netlify folder
+.netlify

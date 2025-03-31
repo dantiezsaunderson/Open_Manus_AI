@@ -1,0 +1,8 @@
+[build]
+  command = "pip install -r requirements.txt"
+  publish = "src"
+
+[[redirects]]
+  from = "/*"
+  to = "/main.py"
+  status = 200

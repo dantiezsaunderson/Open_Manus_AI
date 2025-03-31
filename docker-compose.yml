@@ -1,32 +1,82 @@
-version: '3'
+version: '3.8'
 
 services:
   open-manus-ai:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: open-manus-ai
     restart: unless-stopped
     ports:
-      - "8501:8501"  # Streamlit port
+      - "8501:8501"  # Streamlit
+      - "8000:8000"  # API (if needed)
     volumes:
       - ./data:/app/data
-    env_file:
-      - .env
+      - ./logs:/app/logs
+      - ./.env:/app/.env
     environment:
       - PYTHONUNBUFFERED=1
-    command: python -m src.main
+      - TZ=UTC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - open-manus-network
 
+  # Optional database service for more robust storage
+  mongodb:
+    image: mongo:latest
+    container_name: open-manus-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-password}
+    networks:
+      - open-manus-network
+
+  # Optional Redis service for caching and message queuing
+  redis:
+    image: redis:latest
+    container_name: open-manus-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - open-manus-network
+
+  # Optional Telegram bot service (can be separated for better scaling)
   telegram-bot:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.telegram
     container_name: open-manus-telegram
     restart: unless-stopped
     volumes:
       - ./data:/app/data
-    env_file:
-      - .env
+      - ./logs:/app/logs
+      - ./.env:/app/.env
     environment:
       - PYTHONUNBUFFERED=1
-    command: python -m src.interfaces.telegram_bot
+      - TZ=UTC
+    depends_on:
+      - open-manus-ai
+      - redis
+    networks:
+      - open-manus-network
+
+volumes:
+  mongodb_data:
+  redis_data:
 
 networks:
-  default:
-    name: open-manus-network
+  open-manus-network:
+    driver: bridge
