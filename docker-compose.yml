@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+  open-manus-ai:
+    build: .
+    container_name: open-manus-ai
+    restart: unless-stopped
+    ports:
+      - "8501:8501"  # Streamlit port
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python -m src.main
+
+  telegram-bot:
+    build: .
+    container_name: open-manus-telegram
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python -m src.interfaces.telegram_bot
+
+networks:
+  default:
+    name: open-manus-network
