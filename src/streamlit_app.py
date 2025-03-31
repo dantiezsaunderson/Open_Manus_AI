@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import sys
+import openai
 from dotenv import load_dotenv
 
 # Add the src directory to the Python path
@@ -8,6 +9,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Load environment variables
 load_dotenv()
+
+# Configure OpenAI API
+openai.api_key = os.getenv("OPENAI_API_KEY")
+if not openai.api_key:
+    st.error("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
 
 # Set page configuration
 st.set_page_config(
@@ -20,6 +26,33 @@ st.set_page_config(
 # Initialize session state for conversation history
 if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = []
+
+# Function to get response from OpenAI API
+def get_openai_response(prompt, conversation_history):
+    try:
+        messages = []
+        # Add system message
+        messages.append({"role": "system", "content": "You are Open Manus AI, a helpful assistant with advanced capabilities in conversation, task automation, coding support, and financial analysis."})
+        
+        # Add conversation history
+        for message in conversation_history:
+            messages.append({"role": message["role"], "content": message["content"]})
+        
+        # Add current prompt
+        messages.append({"role": "user", "content": prompt})
+        
+        # Call OpenAI API
+        response = openai.chat.completions.create(
+            model="gpt-4",
+            messages=messages,
+            max_tokens=1000,
+            temperature=0.7,
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"Error calling OpenAI API: {str(e)}")
+        return f"I apologize, but I encountered an error: {str(e)}. Please try again later."
 
 # Sidebar for navigation
 st.sidebar.title("Open Manus AI")
@@ -49,13 +82,13 @@ if page == "Conversation":
             # Add user message to history
             st.session_state.conversation_history.append({"role": "user", "content": user_input})
             
-            # Simulate AI response (in a real app, this would call the AI engine)
-            ai_response = f"I received your message: '{user_input}'. This is a placeholder response. In the full implementation, this would be processed by the GPT-4 powered AI engine."
+            # Get AI response from OpenAI
+            ai_response = get_openai_response(user_input, st.session_state.conversation_history[:-1])
             
             # Add AI response to history
             st.session_state.conversation_history.append({"role": "assistant", "content": ai_response})
             
-            # Clear input
+            # Clear input and rerun to show updated conversation
             st.rerun()
 
 elif page == "Task Automation":
@@ -71,7 +104,13 @@ elif page == "Task Automation":
     if st.button("Execute Task"):
         if task_description:
             st.info("Task submitted for processing...")
-            st.success(f"Task '{task_type}' would be processed here in the full implementation.")
+            
+            # Get AI response for task
+            prompt = f"Task type: {task_type}\nTask description: {task_description}\nPlease complete this task."
+            ai_response = get_openai_response(prompt, [])
+            
+            st.success("Task completed!")
+            st.markdown(f"**Result:**\n{ai_response}")
 
 elif page == "Coding Support":
     st.write("Get help with coding and development.")
@@ -82,7 +121,12 @@ elif page == "Coding Support":
     
     if st.button("Get Code Help"):
         if code_question:
-            st.code(f"# This is a placeholder response for your {code_language} question.\n# In the full implementation, this would provide actual coding assistance.\n\ndef example_function():\n    print('Hello from Open Manus AI!')\n\n# Your question was: {code_question}", language=code_language.lower())
+            # Get AI response for coding question
+            prompt = f"I need help with {code_language} code. Here's my question or code:\n\n{code_question}"
+            ai_response = get_openai_response(prompt, [])
+            
+            st.markdown("### Solution")
+            st.markdown(ai_response)
 
 elif page == "Financial Analysis":
     st.write("Analyze financial data and get insights.")
@@ -96,19 +140,20 @@ elif page == "Financial Analysis":
             if ticker:
                 st.info(f"Analyzing {ticker}...")
                 
-                # Create placeholder charts
+                # Get AI response for stock analysis
+                prompt = f"Perform a detailed analysis of {ticker} stock. Include current price, market cap, P/E ratio, recent performance, and future outlook."
+                ai_response = get_openai_response(prompt, [])
+                
+                st.markdown("### Analysis Results")
+                st.markdown(ai_response)
+                
+                # Create placeholder charts (in a real implementation, these would be actual stock data)
                 st.subheader("Stock Price (Last 12 Months)")
                 chart_data = {"Date": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
                              "Price": [150, 155, 160, 158, 162, 165, 170, 175, 172, 178, 180, 185]}
                 st.line_chart(chart_data, x="Date", y="Price")
-                
-                st.subheader("Key Metrics")
-                st.write(f"- Market Cap: $X billion")
-                st.write(f"- P/E Ratio: X")
-                st.write(f"- Dividend Yield: X%")
-                st.write(f"- 52-Week Range: $X - $Y")
 
 # Footer
 st.sidebar.markdown("---")
 st.sidebar.info("Open Manus AI - Your Personal AI Assistant")
-st.sidebar.markdown("Version 1.0.0")
+st.sidebar.markdown("Version 1.1.0")
