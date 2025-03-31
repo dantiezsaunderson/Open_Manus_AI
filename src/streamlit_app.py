@@ -56,7 +56,7 @@ if page == "Conversation":
             st.session_state.conversation_history.append({"role": "assistant", "content": ai_response})
             
             # Clear input
-            st.experimental_rerun()
+            st.rerun()
 
 elif page == "Task Automation":
     st.write("Automate tasks with your AI assistant.")
