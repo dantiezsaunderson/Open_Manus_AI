@@ -16,7 +16,7 @@ from datetime import datetime
 
 # GitHub credentials from environment variables or user input
 GITHUB_USERNAME = os.environ.get("GITHUB_USERNAME", "dantiezsaunderson")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "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")
 
 # Render deploy hook from environment variable
 RENDER_DEPLOY_HOOK = os.environ.get("RENDER_DEPLOY_HOOK", "https://api.render.com/deploy/srv-cvl1m2a4d50c73e0pkdg?key=SjaQiBUV2cM")
@@ -176,27 +176,28 @@ def main():
     print("=== Open Manus AI Deployment ===")
     print(f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Get GitHub credentials from args or environment variables
-    github_username = args.github_username or GITHUB_USERNAME
-    github_token = args.github_token or GITHUB_TOKEN
-    
-    # If token is still missing, prompt for it
-    if not github_token:
-        github_token = input("Please enter your GitHub personal access token: ")
-    
     success = True
     
     # Push to GitHub if not deploy-only
     if not args.deploy_only:
+        # Get GitHub credentials from args or environment variables
+        github_username = args.github_username or GITHUB_USERNAME
+        github_token = args.github_token or GITHUB_TOKEN
+        
+        # If token is still missing, prompt for it
+        if not github_token:
+            github_token = input("Please enter your GitHub personal access token: ")
+        
         success = push_to_github(args.message, args.branch, github_username, github_token)
     
-    # Deploy to Render if not push-only and GitHub push was successful
+    # Deploy to Render if not push-only and GitHub push was successful (or skipped)
     if not args.push_only and success:
         success = deploy_to_render(RENDER_DEPLOY_HOOK)
     
     if success:
         print("\n=== Deployment Process Complete ===")
-        print(f"GitHub Repository: https://github.com/{github_username}/{GITHUB_REPO}")
+        if not args.deploy_only:
+            print(f"GitHub Repository: https://github.com/{GITHUB_USERNAME}/{GITHUB_REPO}")
         print(f"Deployed Application: {RENDER_APP_URL}")
     else:
         print("\n=== Deployment Process Failed ===")
